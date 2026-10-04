@@ -3,13 +3,26 @@ import pandas as pd
 import requests
 import datetime
 
-st.set_page_config(page_title="Household ATS Showdown", page_icon="🏈", layout="wide")
+# Added 'initial_sidebar_state="collapsed"' to hide the menu on mobile
+st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="wide", initial_sidebar_state="collapsed")
+
+# --- CUSTOM UI CSS ---
+# This injects custom design rules, overriding Streamlit's default look
+st.markdown("""
+    <style>
+    /* Hide the Streamlit top menu and footer for a native app feel */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Center the main dataframe headers */
+    .col_heading {text-align: center !important;}
+    </style>
+""", unsafe_allow_html=True)
 
 def parse_spread(odds_str, team_abbr):
-    """Parses the text string (e.g., 'SF -3.5') into a clean number."""
     if not odds_str or odds_str.upper() in ["EVEN", "PK"]:
         return 0.0
-    
     parts = odds_str.split(" ")
     if len(parts) >= 2:
         favored_team = parts[0]
@@ -17,7 +30,6 @@ def parse_spread(odds_str, team_abbr):
             spread_val = float(parts[1])
         except ValueError:
             return 0.0
-            
         if favored_team == team_abbr:
             return spread_val
         else:
@@ -47,13 +59,9 @@ def fetch_season_data():
             teams = comp['competitors']
             team_abbrs = [t['team']['abbreviation'] for t in teams]
             
-            # Only process if it's a 49ers or Raiders game
             if 'SF' in team_abbrs or 'LV' in team_abbrs:
-                
-                # Check for odds in the main scoreboard first
                 odds_str = comp.get('odds', [{}])[0].get('details', '') if comp.get('odds') else ''
                 
-                # FIX: If ESPN stripped the odds because the game ended, fetch the historical game summary
                 if not odds_str:
                     game_id = event['id']
                     summary_url = f"http://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={game_id}"
@@ -66,85 +74,85 @@ def fetch_season_data():
                     except:
                         pass 
                         
-                # Extract 49ers data
                 if 'SF' in team_abbrs:
                     sf_team = next(t for t in teams if t['team']['abbreviation'] == 'SF')
                     opp_team = next(t for t in teams if t['team']['abbreviation'] != 'SF')
-                    sf_data = {
-                        'score': int(sf_team['score']), 
-                        'opp_score': int(opp_team['score']), 
-                        'spread': parse_spread(odds_str, 'SF')
-                    }
+                    sf_data = {'score': int(sf_team['score']), 'opp_score': int(opp_team['score']), 'spread': parse_spread(odds_str, 'SF')}
                 
-                # Extract Raiders data
                 if 'LV' in team_abbrs:
                     lv_team = next(t for t in teams if t['team']['abbreviation'] == 'LV')
                     opp_team = next(t for t in teams if t['team']['abbreviation'] != 'LV')
-                    lv_data = {
-                        'score': int(lv_team['score']), 
-                        'opp_score': int(opp_team['score']), 
-                        'spread': parse_spread(odds_str, 'LV')
-                    }
+                    lv_data = {'score': int(lv_team['score']), 'opp_score': int(opp_team['score']), 'spread': parse_spread(odds_str, 'LV')}
         
-        # Calculate weekly winner if both played
         if sf_data and lv_data:
             sf_ats = (sf_data['score'] - sf_data['opp_score']) + sf_data['spread']
             lv_ats = (lv_data['score'] - lv_data['opp_score']) + lv_data['spread']
             
-            if sf_ats > lv_ats: 
-                winner = "49ers"
-            elif lv_ats > sf_ats: 
-                winner = "Raiders"
-            else: 
-                winner = "Tie"
+            if sf_ats > lv_ats: winner = "49ers"
+            elif lv_ats > sf_ats: winner = "Raiders"
+            else: winner = "Tie"
             
             results.append({
                 "Week": week,
-                "49ers Spread": sf_data['spread'],
-                "49ers ATS Margin": sf_ats,
-                "Raiders Spread": lv_data['spread'],
-                "Raiders ATS Margin": lv_ats,
+                "49ers Spread": sf_data['spread'], "49ers ATS Margin": sf_ats,
+                "Raiders Spread": lv_data['spread'], "Raiders ATS Margin": lv_ats,
                 "Winner": winner
             })
             
     return pd.DataFrame(results)
 
-# --- DASHBOARD UI ---
-st.title("🏈 ATS Showdown: 49ers vs. Raiders")
-st.caption("Live scores & historical closing lines via ESPN")
+# --- CUSTOM HEADER UI ---
+st.markdown("""
+    <div style='text-align: center; padding-bottom: 20px;'>
+        <h1 style='font-size: 2.5rem; margin-bottom: 0px;'>👻 Bay Bridge Ghost Bowl 🏈</h1>
+        <p style='font-size: 1.1rem; color: #888;'>Against The Spread Household Tracker</p>
+    </div>
+""", unsafe_allow_html=True)
 
-with st.spinner("Crunching this season's matchups..."):
+with st.spinner("Connecting to ESPN API..."):
     df = fetch_season_data()
 
-st.header("🏆 Season Scoreboard")
+# --- CUSTOM SCOREBOARD UI ---
 if not df.empty:
     sf_wins = len(df[df["Winner"] == "49ers"])
     lv_wins = len(df[df["Winner"] == "Raiders"])
     ties = len(df[df["Winner"] == "Tie"])
     
-    col1, col2, col3 = st.columns(3)
-    col1.metric("🔴 49ers Wins", sf_wins)
-    col2.metric("⚫ Raiders Wins", lv_wins)
-    col3.metric("⚖️ Ties", ties)
+    # We replace standard st.metrics with custom HTML cards for team colors
+    scoreboard_html = f"""
+    <div style='display: flex; justify-content: space-between; gap: 10px; margin-bottom: 20px;'>
+        <div style='background-color: #AA0000; color: #B3995D; padding: 15px; border-radius: 10px; width: 32%; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>
+            <div style='font-size: 0.9rem; font-weight: bold; color: white;'>49ERS</div>
+            <div style='font-size: 2.5rem; font-weight: 900;'>{sf_wins}</div>
+        </div>
+        <div style='background-color: #A5ACAF; color: black; padding: 15px; border-radius: 10px; width: 32%; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>
+            <div style='font-size: 0.9rem; font-weight: bold; color: black;'>TIES</div>
+            <div style='font-size: 2.5rem; font-weight: 900;'>{ties}</div>
+        </div>
+        <div style='background-color: #000000; color: #A5ACAF; padding: 15px; border-radius: 10px; width: 32%; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border: 1px solid #A5ACAF;'>
+            <div style='font-size: 0.9rem; font-weight: bold; color: white;'>RAIDERS</div>
+            <div style='font-size: 2.5rem; font-weight: 900;'>{lv_wins}</div>
+        </div>
+    </div>
+    """
+    st.markdown(scoreboard_html, unsafe_allow_html=True)
     
     if sf_wins > lv_wins:
-        st.success("🔥 The 49ers are leading the household!")
+        st.success("🔥 The **49ers** currently own the Bay Bridge!")
     elif lv_wins > sf_wins:
-        st.success("🔥 The Raiders are leading the household!")
+        st.success("🏴‍☠️ The **Raiders** currently own the Bay Bridge!")
     else:
-        st.info("⚖️ It's a dead heat!")
+        st.info("⚖️ The Ghost Bowl is currently a dead heat!")
 
-    st.header("📊 Completed Weeks")
+    st.markdown("<h3 style='text-align: center; padding-top: 10px;'>📊 Completed Weeks</h3>", unsafe_allow_html=True)
     
-    # FIX: Format numbers to show +/- signs and 1 decimal place, then highlight the winning team
+    # Table Formatting
     styled_df = df.style.format({
-        "49ers Spread": "{:+.1f}",
-        "49ers ATS Margin": "{:+.1f}",
-        "Raiders Spread": "{:+.1f}",
-        "Raiders ATS Margin": "{:+.1f}",
+        "49ers Spread": "{:+.1f}", "49ers ATS Margin": "{:+.1f}",
+        "Raiders Spread": "{:+.1f}", "Raiders ATS Margin": "{:+.1f}",
     }).apply(lambda x: [
-        'background-color: lightgreen; color: black' if v == '49ers' else 
-        ('background-color: lightgray; color: black' if v == 'Raiders' else '') 
+        'background-color: #ffcccc; color: black; font-weight: bold' if v == '49ers' else 
+        ('background-color: #e6e6e6; color: black; font-weight: bold' if v == 'Raiders' else '') 
         for v in x
     ], subset=['Winner'])
     
