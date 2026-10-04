@@ -3,20 +3,17 @@ import pandas as pd
 import requests
 import datetime
 
-# Added 'initial_sidebar_state="collapsed"' to hide the menu on mobile
-st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="wide", initial_sidebar_state="collapsed")
+# "collapsed" sidebar and "centered" layout help keep mobile view compact
+st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
 # --- CUSTOM UI CSS ---
-# This injects custom design rules, overriding Streamlit's default look
+# Hides the Streamlit menus and tightens up the top spacing so it fits on one screen
 st.markdown("""
     <style>
-    /* Hide the Streamlit top menu and footer for a native app feel */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
-    /* Center the main dataframe headers */
-    .col_heading {text-align: center !important;}
+    .block-container {padding-top: 1rem !important; padding-bottom: 1rem !important;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -101,37 +98,36 @@ def fetch_season_data():
             
     return pd.DataFrame(results)
 
-# --- CUSTOM HEADER UI ---
+# --- COMPACT CUSTOM HEADER ---
 st.markdown("""
-    <div style='text-align: center; padding-bottom: 20px;'>
-        <h1 style='font-size: 2.5rem; margin-bottom: 0px;'>👻 Bay Bridge Ghost Bowl 🏈</h1>
-        <p style='font-size: 1.1rem; color: #888;'>Against The Spread Household Tracker</p>
+    <div style='text-align: center; padding-bottom: 10px;'>
+        <h2 style='margin-bottom: 0px; padding-bottom: 0px;'>👻 Bay Bridge Ghost Bowl</h2>
+        <p style='font-size: 0.9rem; color: #888; margin-top: 0px;'>Against The Spread Tracker</p>
     </div>
 """, unsafe_allow_html=True)
 
 with st.spinner("Connecting to ESPN API..."):
     df = fetch_season_data()
 
-# --- CUSTOM SCOREBOARD UI ---
 if not df.empty:
     sf_wins = len(df[df["Winner"] == "49ers"])
     lv_wins = len(df[df["Winner"] == "Raiders"])
     ties = len(df[df["Winner"] == "Tie"])
     
-    # We replace standard st.metrics with custom HTML cards for team colors
+    # --- COMPACT SCOREBOARD CARDS ---
     scoreboard_html = f"""
-    <div style='display: flex; justify-content: space-between; gap: 10px; margin-bottom: 20px;'>
-        <div style='background-color: #AA0000; color: #B3995D; padding: 15px; border-radius: 10px; width: 32%; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>
-            <div style='font-size: 0.9rem; font-weight: bold; color: white;'>49ERS</div>
-            <div style='font-size: 2.5rem; font-weight: 900;'>{sf_wins}</div>
+    <div style='display: flex; justify-content: space-between; gap: 8px; margin-bottom: 15px;'>
+        <div style='background-color: #AA0000; color: #B3995D; padding: 10px; border-radius: 8px; width: 32%; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2);'>
+            <div style='font-size: 0.75rem; font-weight: bold; color: white;'>49ERS</div>
+            <div style='font-size: 2rem; font-weight: 900;'>{sf_wins}</div>
         </div>
-        <div style='background-color: #A5ACAF; color: black; padding: 15px; border-radius: 10px; width: 32%; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.2);'>
-            <div style='font-size: 0.9rem; font-weight: bold; color: black;'>TIES</div>
-            <div style='font-size: 2.5rem; font-weight: 900;'>{ties}</div>
+        <div style='background-color: #f0f2f6; color: black; padding: 10px; border-radius: 8px; width: 32%; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2);'>
+            <div style='font-size: 0.75rem; font-weight: bold; color: #555;'>TIES</div>
+            <div style='font-size: 2rem; font-weight: 900;'>{ties}</div>
         </div>
-        <div style='background-color: #000000; color: #A5ACAF; padding: 15px; border-radius: 10px; width: 32%; text-align: center; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border: 1px solid #A5ACAF;'>
-            <div style='font-size: 0.9rem; font-weight: bold; color: white;'>RAIDERS</div>
-            <div style='font-size: 2.5rem; font-weight: 900;'>{lv_wins}</div>
+        <div style='background-color: #000000; color: #A5ACAF; padding: 10px; border-radius: 8px; width: 32%; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2);'>
+            <div style='font-size: 0.75rem; font-weight: bold; color: white;'>RAIDERS</div>
+            <div style='font-size: 2rem; font-weight: 900;'>{lv_wins}</div>
         </div>
     </div>
     """
@@ -144,19 +140,62 @@ if not df.empty:
     else:
         st.info("⚖️ The Ghost Bowl is currently a dead heat!")
 
-    st.markdown("<h3 style='text-align: center; padding-top: 10px;'>📊 Completed Weeks</h3>", unsafe_allow_html=True)
+    # --- CUSTOM HTML TABLE (MERGED HEADERS, NO SCROLLING) ---
+    table_html = """
+    <style>
+        .ghost-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 0.8rem; font-family: sans-serif; margin-top: 10px;}
+        .ghost-table th, .ghost-table td { padding: 4px 2px; border: 1px solid #ddd; }
+        .sf-head { background-color: #AA0000; color: #B3995D; font-weight: bold; border: 1px solid #770000 !important; }
+        .lv-head { background-color: #000000; color: #A5ACAF; font-weight: bold; border: 1px solid #333 !important; }
+        .sub-head { background-color: #f8f9fa; font-size: 0.7rem; color: #555; }
+        .win-sf { background-color: #fff0f0; font-weight: bold; color: #AA0000; }
+        .win-lv { background-color: #f0f0f0; font-weight: bold; color: black; }
+    </style>
+    <table class='ghost-table'>
+        <thead>
+            <tr>
+                <th rowspan="2" style="background-color: #f8f9fa;">Wk</th>
+                <th colspan="2" class="sf-head">49ERS</th>
+                <th colspan="2" class="lv-head">RAIDERS</th>
+                <th rowspan="2" style="background-color: #f8f9fa;">Win</th>
+            </tr>
+            <tr class="sub-head">
+                <th>Spread</th>
+                <th>ATS</th>
+                <th>Spread</th>
+                <th>ATS</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
     
-    # Table Formatting
-    styled_df = df.style.format({
-        "49ers Spread": "{:+.1f}", "49ers ATS Margin": "{:+.1f}",
-        "Raiders Spread": "{:+.1f}", "Raiders ATS Margin": "{:+.1f}",
-    }).apply(lambda x: [
-        'background-color: #ffcccc; color: black; font-weight: bold' if v == '49ers' else 
-        ('background-color: #e6e6e6; color: black; font-weight: bold' if v == 'Raiders' else '') 
-        for v in x
-    ], subset=['Winner'])
+    # Loop through the data to build the rows
+    for index, row in df.iterrows():
+        # Apply light background colors to the cells of the winning team
+        sf_class = "win-sf" if row['Winner'] == '49ers' else ""
+        lv_class = "win-lv" if row['Winner'] == 'Raiders' else ""
+        
+        # Determine the winner badge
+        if row['Winner'] == '49ers': win_badge = "🔴 SF"
+        elif row['Winner'] == 'Raiders': win_badge = "⚫ LV"
+        else: win_badge = "Tie"
+
+        table_html += f"""
+            <tr>
+                <td style="font-weight: bold;">{row['Week']}</td>
+                <td class="{sf_class}">{row['49ers Spread']:+.1f}</td>
+                <td class="{sf_class}">{row['49ers ATS Margin']:+.1f}</td>
+                <td class="{lv_class}">{row['Raiders Spread']:+.1f}</td>
+                <td class="{lv_class}">{row['Raiders ATS Margin']:+.1f}</td>
+                <td style="font-size: 0.75rem; font-weight: bold;">{win_badge}</td>
+            </tr>
+        """
+        
+    table_html += "</tbody></table>"
     
-    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+    # Render the custom HTML table
+    st.markdown(table_html, unsafe_allow_html=True)
+
 else:
     st.info("No completed head-to-head weeks found yet for this season.")
-    
+        
