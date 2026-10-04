@@ -6,10 +6,7 @@ import datetime
 st.set_page_config(page_title="Household ATS Showdown", page_icon="🏈", layout="wide")
 
 def parse_spread(odds_str, team_abbr):
-    """
-    Think of this like a DAX SWITCH or nested IF statement.
-    It takes ESPN's text string (e.g., 'SF -3.5') and turns it into a decimal number.
-    """
+    """Parses the text string (e.g., 'SF -3.5') into a clean number."""
     if not odds_str or odds_str.upper() in ["EVEN", "PK"]:
         return 0.0
     
@@ -29,16 +26,11 @@ def parse_spread(odds_str, team_abbr):
 
 @st.cache_data(ttl=3600) 
 def fetch_season_data():
-    """
-    This is your Python equivalent of Power Query (M-Code).
-    It connects to the web, drills down into the JSON, and builds a clean table.
-    """
     results = []
     now = datetime.datetime.now()
     year = now.year if now.month > 2 else now.year - 1
     
     for week in range(1, 19):
-        # Web.Contents equivalent: Pulls the raw JSON for that specific week
         url = f"http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates={year}&week={week}&seasontype=2"
         resp = requests.get(url)
         if resp.status_code != 200: 
@@ -47,39 +39,54 @@ def fetch_season_data():
         data = resp.json()
         sf_data, lv_data = None, None
         
-        # Expand the JSON records (like clicking the "Expand" arrows in Power Query)
         for event in data.get('events', []):
             comp = event['competitions'][0]
-            
-            # Filter out games that haven't finished yet ('post' means completed)
             if comp['status']['type']['state'] != 'post': 
                 continue
                 
             teams = comp['competitors']
             team_abbrs = [t['team']['abbreviation'] for t in teams]
             
-            # ESPN stores the closing spread in the 'details' text field
-            odds_str = comp.get('odds', [{}])[0].get('details', '') if comp.get('odds') else ''
-            
-            if 'SF' in team_abbrs:
-                sf_team = next(t for t in teams if t['team']['abbreviation'] == 'SF')
-                opp_team = next(t for t in teams if t['team']['abbreviation'] != 'SF')
-                sf_data = {
-                    'score': int(sf_team['score']), 
-                    'opp_score': int(opp_team['score']), 
-                    'spread': parse_spread(odds_str, 'SF')
-                }
-            
-            if 'LV' in team_abbrs:
-                lv_team = next(t for t in teams if t['team']['abbreviation'] == 'LV')
-                opp_team = next(t for t in teams if t['team']['abbreviation'] != 'LV')
-                lv_data = {
-                    'score': int(lv_team['score']), 
-                    'opp_score': int(opp_team['score']), 
-                    'spread': parse_spread(odds_str, 'LV')
-                }
+            # Only process if it's a 49ers or Raiders game
+            if 'SF' in team_abbrs or 'LV' in team_abbrs:
+                
+                # Check for odds in the main scoreboard first
+                odds_str = comp.get('odds', [{}])[0].get('details', '') if comp.get('odds') else ''
+                
+                # FIX: If ESPN stripped the odds because the game ended, fetch the historical game summary
+                if not odds_str:
+                    game_id = event['id']
+                    summary_url = f"http://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={game_id}"
+                    try:
+                        sum_resp = requests.get(summary_url)
+                        if sum_resp.status_code == 200:
+                            pickcenter = sum_resp.json().get('pickcenter', [])
+                            if pickcenter:
+                                odds_str = pickcenter[0].get('details', '')
+                    except:
+                        pass 
+                        
+                # Extract 49ers data
+                if 'SF' in team_abbrs:
+                    sf_team = next(t for t in teams if t['team']['abbreviation'] == 'SF')
+                    opp_team = next(t for t in teams if t['team']['abbreviation'] != 'SF')
+                    sf_data = {
+                        'score': int(sf_team['score']), 
+                        'opp_score': int(opp_team['score']), 
+                        'spread': parse_spread(odds_str, 'SF')
+                    }
+                
+                # Extract Raiders data
+                if 'LV' in team_abbrs:
+                    lv_team = next(t for t in teams if t['team']['abbreviation'] == 'LV')
+                    opp_team = next(t for t in teams if t['team']['abbreviation'] != 'LV')
+                    lv_data = {
+                        'score': int(lv_team['score']), 
+                        'opp_score': int(opp_team['score']), 
+                        'spread': parse_spread(odds_str, 'LV')
+                    }
         
-        # If both teams played this week (ignores bye weeks), calculate the winner
+        # Calculate weekly winner if both played
         if sf_data and lv_data:
             sf_ats = (sf_data['score'] - sf_data['opp_score']) + sf_data['spread']
             lv_ats = (lv_data['score'] - lv_data['opp_score']) + lv_data['spread']
@@ -91,7 +98,6 @@ def fetch_season_data():
             else: 
                 winner = "Tie"
             
-            # Append a new row to our list
             results.append({
                 "Week": week,
                 "49ers Spread": sf_data['spread'],
@@ -101,13 +107,11 @@ def fetch_season_data():
                 "Winner": winner
             })
             
-    # Convert our list of rows into a DataFrame (a clean table)
     return pd.DataFrame(results)
 
-
-# --- DASHBOARD UI (Your 'Excel Canvas') ---
+# --- DASHBOARD UI ---
 st.title("🏈 ATS Showdown: 49ers vs. Raiders")
-st.caption("Live scores & closing lines via ESPN")
+st.caption("Live scores & historical closing lines via ESPN")
 
 with st.spinner("Crunching this season's matchups..."):
     df = fetch_season_data()
@@ -131,12 +135,20 @@ if not df.empty:
         st.info("⚖️ It's a dead heat!")
 
     st.header("📊 Completed Weeks")
-    # Apply a light green highlight to the winning team's column
-    st.dataframe(
-        df.style.apply(lambda x: ['background-color: lightgreen' if v == '49ers' else '' for v in x], subset=['Winner']),
-        use_container_width=True,
-        hide_index=True
-    )
+    
+    # FIX: Format numbers to show +/- signs and 1 decimal place, then highlight the winning team
+    styled_df = df.style.format({
+        "49ers Spread": "{:+.1f}",
+        "49ers ATS Margin": "{:+.1f}",
+        "Raiders Spread": "{:+.1f}",
+        "Raiders ATS Margin": "{:+.1f}",
+    }).apply(lambda x: [
+        'background-color: lightgreen; color: black' if v == '49ers' else 
+        ('background-color: lightgray; color: black' if v == 'Raiders' else '') 
+        for v in x
+    ], subset=['Winner'])
+    
+    st.dataframe(styled_df, use_container_width=True, hide_index=True)
 else:
     st.info("No completed head-to-head weeks found yet for this season.")
     
