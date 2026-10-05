@@ -13,9 +13,18 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    
+    /* Hides the Streamlit Community Cloud floating viewer badges and developer buttons */
+    .stAppDeployButton {display: none !important;}
+    [data-testid="viewerBadge"] {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    [data-testid="manage-app-button"] {display: none !important;}
+    div[class^="viewerBadge"] {display: none !important;}
+    
     .block-container {padding-top: 0.5rem !important; padding-bottom: 1rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important;}
     </style>
 """, unsafe_allow_html=True)
+
 
 def parse_spread(odds_str, team_abbr):
     if not odds_str or odds_str.upper() in ["EVEN", "PK"]:
