@@ -187,8 +187,13 @@ def fetch_season_data():
             
     return pd.DataFrame(results)
 
-def is_celebration_active(latest_week_num, current_week_num, sf_live, lv_live):
-    """Enforces current-week-only celebrations that shut off Thursday before TNF kickoff."""
+def is_celebration_active(latest_completed_week, current_week_num, sf_live, lv_live):
+    """
+    Enforces strict celebration timing:
+    - Never shows past week on game day (Sunday/Monday).
+    - Only activates once BOTH current week games are officially final ('post').
+    - Remains active through Thursday at 5:15 PM PT (TNF kickoff).
+    """
     try:
         now_pt = datetime.datetime.now(ZoneInfo("America/Los_Angeles"))
     except Exception:
@@ -196,34 +201,40 @@ def is_celebration_active(latest_week_num, current_week_num, sf_live, lv_live):
         
     weekday = now_pt.weekday() # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
     
-    # 1. Friday & Saturday: Off
+    # 1. Friday & Saturday: Inactive
     if weekday in [4, 5]:
         return False
         
-    # 2. Thursday: Shuts off at 5:15 PM PT for TNF kickoff
+    # 2. Thursday: Cut off at 5:15 PM PT
     if weekday == 3:
         if now_pt.hour > 17 or (now_pt.hour == 17 and now_pt.minute >= 15):
             return False
-            
-    # 3. Sunday: Only active once BOTH games are finished
-    if weekday == 6:
+        if latest_completed_week not in [current_week_num, current_week_num - 1]:
+            return False
+        return True
+
+    # 3. Tuesday & Wednesday: Active for the week that just finished
+    if weekday in [1, 2]:
+        if latest_completed_week not in [current_week_num, current_week_num - 1]:
+            return False
+        return True
+
+    # 4. Sunday & Monday (Game Days):
+    # NEVER show old week's winner.
+    # ONLY show if:
+    # a) Neither team is on a bye
+    # b) BOTH games are completely final ('post')
+    # c) The latest completed week matches this active week
+    if weekday in [0, 6]:
         if not sf_live or not lv_live:
             return False
         if sf_live.get('state') != 'post' or lv_live.get('state') != 'post':
             return False
-            
-    # 4. Monday: Don't show until any Monday games finish
-    if weekday == 0:
-        if sf_live and sf_live.get('state') != 'post':
+        if latest_completed_week != current_week_num:
             return False
-        if lv_live and lv_live.get('state') != 'post':
-            return False
-            
-    # 5. Must strictly be the current completed week (or last week after Tue rollover)
-    if latest_week_num not in [current_week_num, current_week_num - 1]:
-        return False
-        
-    return True
+        return True
+
+    return False
 
 def build_live_card_html(team, bg_color, text_color, data, is_winning=False):
     if not data:
@@ -303,7 +314,7 @@ st.markdown(live_html, unsafe_allow_html=True)
 if not df.empty:
     latest_week = df.iloc[-1]
     
-    # Trigger celebration only if within the active window (Sunday final -> Thursday 5:15 PM PT)
+    # Strict validation check before popping the celebration
     if is_celebration_active(latest_week['Week'], current_week_num, sf_live, lv_live):
         if "celebration_shown" not in st.session_state:
             st.session_state.celebration_shown = True
