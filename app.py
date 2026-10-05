@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import datetime
 import os
+from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
@@ -32,14 +33,33 @@ def parse_spread(odds_str, team_abbr):
             return abs(spread_val) 
     return 0.0
 
-@st.cache_data(ttl=60) # Caches for 60 seconds so live scores update fast
+@st.dialog("🏆 Weekly Winner Finalized!")
+def flash_celebration(winner, week_num):
+    st.balloons()
+    if winner == "49ers":
+        st.markdown(f"<h3 style='text-align: center; margin-bottom: 10px;'>⛏️ 49ers Win Week {week_num}!</h3>", unsafe_allow_html=True)
+        if os.path.exists("1791158028631.jpg"):
+            st.image("1791158028631.jpg", use_container_width=True)
+        elif os.path.exists("niners_mascot.jpg"):
+            st.image("niners_mascot.jpg", use_container_width=True)
+    elif winner == "Raiders":
+        st.markdown(f"<h3 style='text-align: center; margin-bottom: 10px;'>🏴‍☠️ Raiders Win Week {week_num}!</h3>", unsafe_allow_html=True)
+        if os.path.exists("1791158149259.jpg"):
+            st.image("1791158149259.jpg", use_container_width=True)
+        elif os.path.exists("raiders_mascot.jpg"):
+            st.image("raiders_mascot.jpg", use_container_width=True)
+    else:
+        st.markdown(f"<h3 style='text-align: center;'>⚖️ Week {week_num} Ended in a Tie!</h3>", unsafe_allow_html=True)
+
+@st.cache_data(ttl=60)
 def fetch_current_week():
     url = "http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
     resp = requests.get(url)
     if resp.status_code != 200: 
-        return None, None
+        return None, None, 0
     data = resp.json()
     
+    current_week_num = data.get('week', {}).get('number', 0)
     sf_data, lv_data = None, None
     
     for event in data.get('events', []):
@@ -100,7 +120,7 @@ def fetch_current_week():
                     'spread': spread_val, 'live_ats': live_ats
                 }
                 
-    return sf_data, lv_data
+    return sf_data, lv_data, current_week_num
 
 @st.cache_data(ttl=3600)
 def fetch_season_data():
@@ -167,6 +187,44 @@ def fetch_season_data():
             
     return pd.DataFrame(results)
 
+def is_celebration_active(latest_week_num, current_week_num, sf_live, lv_live):
+    """Enforces current-week-only celebrations that shut off Thursday before TNF kickoff."""
+    try:
+        now_pt = datetime.datetime.now(ZoneInfo("America/Los_Angeles"))
+    except Exception:
+        now_pt = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
+        
+    weekday = now_pt.weekday() # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+    
+    # 1. Friday & Saturday: Off
+    if weekday in [4, 5]:
+        return False
+        
+    # 2. Thursday: Shuts off at 5:15 PM PT for TNF kickoff
+    if weekday == 3:
+        if now_pt.hour > 17 or (now_pt.hour == 17 and now_pt.minute >= 15):
+            return False
+            
+    # 3. Sunday: Only active once BOTH games are finished
+    if weekday == 6:
+        if not sf_live or not lv_live:
+            return False
+        if sf_live.get('state') != 'post' or lv_live.get('state') != 'post':
+            return False
+            
+    # 4. Monday: Don't show until any Monday games finish
+    if weekday == 0:
+        if sf_live and sf_live.get('state') != 'post':
+            return False
+        if lv_live and lv_live.get('state') != 'post':
+            return False
+            
+    # 5. Must strictly be the current completed week (or last week after Tue rollover)
+    if latest_week_num not in [current_week_num, current_week_num - 1]:
+        return False
+        
+    return True
+
 def build_live_card_html(team, bg_color, text_color, data, is_winning=False):
     if not data:
         return f"""<div style='background-color: {bg_color}; color: {text_color}; padding: 8px; border-radius: 8px; width: 49%; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2); border: 1px solid #444;'>
@@ -178,7 +236,6 @@ def build_live_card_html(team, bg_color, text_color, data, is_winning=False):
     spread_val = data['spread']
     spread_str = f"{spread_val:+.1f}" if spread_val != 0 else "PK"
 
-    # Winning banner at the top of the card
     if is_winning:
         winning_banner = "<div style='background-color: #28a745; color: white; font-weight: 800; font-size: 0.72rem; padding: 3px 0; border-radius: 4px; margin-bottom: 6px; letter-spacing: 0.5px;'>🏆 WINNING</div>"
     else:
@@ -213,7 +270,7 @@ else:
     st.markdown("<h2 style='text-align: center;'>👻 Bay Bridge Ghost Bowl</h2>", unsafe_allow_html=True)
 
 with st.spinner("Connecting to ESPN Live API..."):
-    sf_live, lv_live = fetch_current_week()
+    sf_live, lv_live, current_week_num = fetch_current_week()
     df = fetch_season_data()
 
 # Determine live weekly ATS leader
@@ -244,6 +301,14 @@ live_html = f"""<div style='display: flex; justify-content: space-between; gap: 
 st.markdown(live_html, unsafe_allow_html=True)
 
 if not df.empty:
+    latest_week = df.iloc[-1]
+    
+    # Trigger celebration only if within the active window (Sunday final -> Thursday 5:15 PM PT)
+    if is_celebration_active(latest_week['Week'], current_week_num, sf_live, lv_live):
+        if "celebration_shown" not in st.session_state:
+            st.session_state.celebration_shown = True
+            flash_celebration(latest_week['Winner'], latest_week['Week'])
+
     sf_wins = len(df[df["Winner"] == "49ers"])
     lv_wins = len(df[df["Winner"] == "Raiders"])
     ties = len(df[df["Winner"] == "Tie"])
@@ -324,4 +389,4 @@ if not df.empty:
 
 else:
     st.info("No completed head-to-head weeks found yet for this season.")
-    
+                    
