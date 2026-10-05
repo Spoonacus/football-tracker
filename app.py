@@ -122,7 +122,7 @@ def fetch_current_week():
                 
     return sf_data, lv_data, current_week_num
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=300) # REDUCED TO 5 MINUTES SO IT LOGS THE WINNER QUICKLY
 def fetch_season_data():
     results = []
     now = datetime.datetime.now()
@@ -188,24 +188,16 @@ def fetch_season_data():
     return pd.DataFrame(results)
 
 def is_celebration_active(latest_completed_week, current_week_num, sf_live, lv_live):
-    """
-    Enforces strict celebration timing:
-    - Never shows past week on game day (Sunday/Monday).
-    - Only activates once BOTH current week games are officially final ('post').
-    - Remains active through Thursday at 5:15 PM PT (TNF kickoff).
-    """
     try:
         now_pt = datetime.datetime.now(ZoneInfo("America/Los_Angeles"))
     except Exception:
         now_pt = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
         
-    weekday = now_pt.weekday() # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun
+    weekday = now_pt.weekday()
     
-    # 1. Friday & Saturday: Inactive
     if weekday in [4, 5]:
         return False
         
-    # 2. Thursday: Cut off at 5:15 PM PT
     if weekday == 3:
         if now_pt.hour > 17 or (now_pt.hour == 17 and now_pt.minute >= 15):
             return False
@@ -213,18 +205,11 @@ def is_celebration_active(latest_completed_week, current_week_num, sf_live, lv_l
             return False
         return True
 
-    # 3. Tuesday & Wednesday: Active for the week that just finished
     if weekday in [1, 2]:
         if latest_completed_week not in [current_week_num, current_week_num - 1]:
             return False
         return True
 
-    # 4. Sunday & Monday (Game Days):
-    # NEVER show old week's winner.
-    # ONLY show if:
-    # a) Neither team is on a bye
-    # b) BOTH games are completely final ('post')
-    # c) The latest completed week matches this active week
     if weekday in [0, 6]:
         if not sf_live or not lv_live:
             return False
@@ -284,7 +269,6 @@ with st.spinner("Connecting to ESPN Live API..."):
     sf_live, lv_live, current_week_num = fetch_current_week()
     df = fetch_season_data()
 
-# Determine live weekly ATS leader
 sf_winning = False
 lv_winning = False
 
@@ -314,7 +298,6 @@ st.markdown(live_html, unsafe_allow_html=True)
 if not df.empty:
     latest_week = df.iloc[-1]
     
-    # Strict validation check before popping the celebration
     if is_celebration_active(latest_week['Week'], current_week_num, sf_live, lv_live):
         if "celebration_shown" not in st.session_state:
             st.session_state.celebration_shown = True
@@ -324,7 +307,6 @@ if not df.empty:
     lv_wins = len(df[df["Winner"] == "Raiders"])
     ties = len(df[df["Winner"] == "Tie"])
     
-    # Scoreboard Cards
     scoreboard_html = f"""<div style='display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; margin-bottom: 12px;'>
 <div style='background-color: #AA0000; color: #B3995D; padding: 8px; border-radius: 8px; width: 32%; text-align: center; box-shadow: 1px 1px 4px rgba(0,0,0,0.2);'>
 <div style='font-size: 0.75rem; font-weight: bold; color: white;'>SF WINS</div>
@@ -348,7 +330,6 @@ if not df.empty:
     else:
         st.info("⚖️ The Ghost Bowl is currently a dead heat!")
 
-    # Custom Table Rows
     table_rows = ""
     for index, row in df.iterrows():
         sf_class = "win-sf" if row['Winner'] == '49ers' else ""
@@ -400,4 +381,4 @@ if not df.empty:
 
 else:
     st.info("No completed head-to-head weeks found yet for this season.")
-                    
+    
