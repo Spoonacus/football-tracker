@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import datetime
 import os
+import base64
 from zoneinfo import ZoneInfo
 
 if 'splash_shown' not in st.session_state:
