@@ -15,7 +15,7 @@ if not st.session_state.splash_shown:
             video_bytes = video_file.read()
         video_b64 = base64.b64encode(video_bytes).decode()
         
-        # We use a pure CSS animation to fade out and hide the screen after 3.5 seconds
+        # We use a pure CSS animation to fade out and hide the screen after 10 seconds
         splash_html = f"""
         <style>
             @keyframes fadeOutAndHide {{
@@ -35,7 +35,7 @@ if not st.session_state.splash_shown:
                 justify-content: center;
                 align-items: center;
                 pointer-events: none; /* Allows you to click 'through' it just in case */
-                animation: fadeOutAndHide 3.5s forwards;
+                animation: fadeOutAndHide 10.5s forwards;
             }}
         </style>
         <div id="video-splash">
