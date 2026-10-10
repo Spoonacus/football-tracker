@@ -6,85 +6,31 @@ import os
 import base64
 from zoneinfo import ZoneInfo
 
+import time # Ensure this is at the top with your other imports
+
 if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
-    try:
-        with open("intro.mp4", "rb") as video_file:
-            video_bytes = video_file.read()
-        video_b64 = base64.b64encode(video_bytes).decode()
-        
-        # We use a pure CSS animation to fade out and hide the screen after 10 seconds
-        splash_html = f"""
-        <style>
-            @keyframes fadeOutAndHide {{
-                0% {{ opacity: 1; visibility: visible; z-index: 999999; }}
-                80% {{ opacity: 1; visibility: visible; z-index: 999999; }}
-                100% {{ opacity: 0; visibility: hidden; z-index: -1; }}
-            }}
-            #video-splash {{
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                background-color: #000;
-                z-index: 999999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                pointer-events: none; /* Allows you to click 'through' it just in case */
-                animation: fadeOutAndHide 10.5s forwards;
-            }}
-        </style>
-        <div id="video-splash">
-            <video autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;">
-                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
-            </video>
-        </div>
-        """
-        st.markdown(splash_html, unsafe_allow_html=True)
-        st.session_state.splash_shown = True
-        
-    except FileNotFoundError:
-        pass  
-        
-    try:
-        with open("intro.mp4", "rb") as video_file:
-            video_bytes = video_file.read()
-        video_b64 = base64.b64encode(video_bytes).decode()
-        
-        splash_html = f"""
-        <div id="video-splash" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #000; z-index: 999999; display: flex; justify-content: center; align-items: center; transition: opacity 0.5s ease;">
-            <video id="splash-video" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;">
-                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
-            </video>
-        </div>
-        <script>
-            const splash = window.parent.document.getElementById('video-splash') || document.getElementById('video-splash');
-            const vid = window.parent.document.getElementById('splash-video') || document.getElementById('splash-video');
+    # 1. Create a temporary empty container at the very top of the app
+    splash_placeholder = st.empty()
+    
+    # 2. Put the native Streamlit video inside the container and set it to autoplay
+    with splash_placeholder:
+        try:
+            # We must set muted=True for browsers to allow autoplay
+            st.video("intro.mp4", format="video/mp4", autoplay=True, muted=True)
             
-            function dismissSplash() {{
-                if (splash) {{
-                    splash.style.opacity = '0';
-                    setTimeout(() => {{ splash.style.display = 'none'; }}, 500);
-                }}
-            }}
+            # 3. Force the app to pause loading the rest of the dashboard for exactly 10 seconds
+            time.sleep(10)
+        except FileNotFoundError:
+            pass # Skip if the video hasn't been uploaded yet
             
-            if (vid) {{
-                vid.addEventListener('ended', dismissSplash);
-                setTimeout(dismissSplash, 3500); 
-            }} else {{
-                setTimeout(dismissSplash, 3500);
-            }}
-        </script>
-        """
-        st.markdown(splash_html, unsafe_allow_html=True)
-        st.session_state.splash_shown = True
-        
-    except FileNotFoundError:
-        pass
+    # 4. Delete the container entirely so the video disappears
+    splash_placeholder.empty()
+    
+    # 5. Lock it so it doesn't play again during this session
+    st.session_state.splash_shown = True
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
