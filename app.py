@@ -12,36 +12,45 @@ if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
-    # 1. CSS to force the Streamlit image to be fullscreen, cover the background, and fade out
-    st.markdown("""
-    <style>
-        @keyframes fadeOutAndHide {
-            0% { opacity: 1; visibility: visible; z-index: 999999; }
-            95% { opacity: 1; visibility: visible; z-index: 999999; }
-            100% { opacity: 0; visibility: hidden; z-index: -1; display: none; }
-        }
-        [data-testid="stImage"] {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 999999;
-            background-color: black;
-            animation: fadeOutAndHide 10.5s forwards;
-            pointer-events: none; /* Prevents the invisible overlay from blocking taps later */
-        }
-        [data-testid="stImage"] img {
-            width: 100vw;
-            height: 100vh;
-            object-fit: cover; /* Forces the GIF to fill the phone screen seamlessly */
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # 2. Display the GIF using st.image instead of st.video
     try:
-        st.image("intro.gif")
+        # Load the GIF as text data so it doesn't hijack native Streamlit images
+        with open("intro.gif", "rb") as f:
+            gif_bytes = f.read()
+        gif_b64 = base64.b64encode(gif_bytes).decode()
+        
+        splash_html = f"""
+        <style>
+            @keyframes fadeOutAndHide {{
+                0% {{ opacity: 1; visibility: visible; z-index: 999999; }}
+                95% {{ opacity: 1; visibility: visible; z-index: 999999; }}
+                100% {{ opacity: 0; visibility: hidden; z-index: -1; display: none; }}
+            }}
+            #custom-splash-screen {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background-color: black;
+                z-index: 999999;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                animation: fadeOutAndHide 10.5s forwards;
+                pointer-events: none;
+            }}
+            #custom-splash-screen img {{
+                width: 100vw;
+                height: 100vh;
+                object-fit: cover;
+            }}
+        </style>
+        <div id="custom-splash-screen">
+            <img src="data:image/gif;base64,{gif_b64}">
+        </div>
+        """
+        st.markdown(splash_html, unsafe_allow_html=True)
+        
     except FileNotFoundError:
         pass
         
