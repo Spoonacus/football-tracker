@@ -10,7 +10,6 @@ if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
-    if not st.session_state.splash_shown:
     try:
         with open("intro.mp4", "rb") as video_file:
             video_bytes = video_file.read()
@@ -49,7 +48,7 @@ if not st.session_state.splash_shown:
         st.session_state.splash_shown = True
         
     except FileNotFoundError:
-        pass 
+        pass  
         
     try:
         with open("intro.mp4", "rb") as video_file:
