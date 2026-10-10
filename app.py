@@ -4,6 +4,50 @@ import requests
 import datetime
 import os
 from zoneinfo import ZoneInfo
+import streamlit as st
+import pandas as pd
+import requests
+import base64
+
+if 'splash_shown' not in st.session_state:
+    st.session_state.splash_shown = False
+
+if not st.session_state.splash_shown:
+    try:
+        with open("intro.mp4", "rb") as video_file:
+            video_bytes = video_file.read()
+        video_b64 = base64.b64encode(video_bytes).decode()
+        
+        splash_html = f"""
+        <div id="video-splash" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: #000; z-index: 999999; display: flex; justify-content: center; align-items: center; transition: opacity 0.5s ease;">
+            <video id="splash-video" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;">
+                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+            </video>
+        </div>
+        <script>
+            const splash = window.parent.document.getElementById('video-splash') || document.getElementById('video-splash');
+            const vid = window.parent.document.getElementById('splash-video') || document.getElementById('splash-video');
+            
+            function dismissSplash() {{
+                if (splash) {{
+                    splash.style.opacity = '0';
+                    setTimeout(() => {{ splash.style.display = 'none'; }}, 500);
+                }}
+            }}
+            
+            if (vid) {{
+                vid.addEventListener('ended', dismissSplash);
+                setTimeout(dismissSplash, 3500); 
+            }} else {{
+                setTimeout(dismissSplash, 3500);
+            }}
+        </script>
+        """
+        st.markdown(splash_html, unsafe_allow_html=True)
+        st.session_state.splash_shown = True
+        
+    except FileNotFoundError:
+        pass
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
