@@ -10,9 +10,59 @@ import time # Ensure this is at the top with your other imports
 
 import time
 
+import base64
+import streamlit as st
+
 if 'splash_shown' not in st.session_state:
-                # Pass a known, perfectly encoded test video URL
-            st.video("https://www.w3schools.com/html/mov_bbb.mp4", format="video/mp4", autoplay=True, muted=True)
+    st.session_state.splash_shown = False
+
+if not st.session_state.splash_shown:
+    try:
+        # Load the newly converted H.264 video
+        with open("intro.mp4", "rb") as video_file:
+            video_bytes = video_file.read()
+        video_b64 = base64.b64encode(video_bytes).decode()
+        
+        # Pure CSS overlay: No controls, full screen, auto-hides
+        splash_html = f"""
+        <style>
+            @keyframes fadeOutAndHide {{
+                0% {{ opacity: 1; visibility: visible; z-index: 999999; }}
+                95% {{ opacity: 1; visibility: visible; z-index: 999999; }}
+                100% {{ opacity: 0; visibility: hidden; z-index: -1; display: none; }}
+            }}
+            #video-splash-container {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background-color: #000000;
+                z-index: 999999;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                animation: fadeOutAndHide 10.5s forwards;
+                pointer-events: none; /* Prevents the overlay from blocking interactions after fading */
+            }}
+            #video-splash-container video {{
+                width: 100%;
+                height: 100%;
+                object-fit: cover; /* Forces the video to fill the screen on mobile */
+                pointer-events: none; /* Strips away any hidden tap-to-pause controls */
+            }}
+        </style>
+        <div id="video-splash-container">
+            <video autoplay muted playsinline>
+                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+            </video>
+        </div>
+        """
+        st.markdown(splash_html, unsafe_allow_html=True)
+        st.session_state.splash_shown = True
+        
+    except FileNotFoundError:
+        pass
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
