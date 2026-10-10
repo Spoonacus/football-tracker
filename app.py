@@ -15,49 +15,46 @@ if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
-    splash_placeholder = st.empty()
+    # 1. CSS to force the native Streamlit video to be fullscreen, hide controls, and auto-delete
+    st.markdown("""
+    <style>
+        @keyframes fadeOutAndHide {
+            0% { opacity: 1; visibility: visible; z-index: 999999; }
+            95% { opacity: 1; visibility: visible; z-index: 999999; }
+            100% { opacity: 0; visibility: hidden; z-index: -1; display: none; }
+        }
+        [data-testid="stVideo"] {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 999999;
+            background-color: black;
+            animation: fadeOutAndHide 10.5s forwards;
+            pointer-events: none; /* Prevents the video from blocking your taps after fading */
+        }
+        [data-testid="stVideo"] video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        /* Completely hides the timeline and play buttons */
+        video::-webkit-media-controls {
+            display: none !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
     
-    # Use a container so we can hold both the CSS and the Video
-    with splash_placeholder.container():
+    # 2. Start the video, but DO NOT pause the server
+    try:
+        with open("intro.mp4", "rb") as video_file:
+            video_bytes = video_file.read()
         
-        # 1. CSS to force the native Streamlit video to be fullscreen with no controls
-        st.markdown("""
-        <style>
-            [data-testid="stVideo"] {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                z-index: 999999;
-                background-color: black;
-            }
-            [data-testid="stVideo"] video {
-                width: 100%;
-                height: 100%;
-                object-fit: cover; /* Forces video to stretch to the edges */
-            }
-            /* Hides the playback timeline and buttons */
-            video::-webkit-media-controls {
-                display: none !important;
-            }
-        </style>
-        """, unsafe_allow_html=True)
+        st.video(video_bytes, format="video/mp4", autoplay=True, muted=True)
+    except FileNotFoundError:
+        pass
         
-        # 2. Use the native Streamlit video player that we know works
-        try:
-            with open("intro.mp4", "rb") as video_file:
-                video_bytes = video_file.read()
-            
-            st.video(video_bytes, format="video/mp4", autoplay=True, muted=True)
-            
-            # Pause the dashboard from loading beneath it for 10 seconds
-            time.sleep(10)
-        except FileNotFoundError:
-            pass
-            
-    # 3. Delete the container, which instantly removes the video AND the fullscreen CSS
-    splash_placeholder.empty()
     st.session_state.splash_shown = True
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
