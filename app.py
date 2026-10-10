@@ -4,10 +4,6 @@ import requests
 import datetime
 import os
 from zoneinfo import ZoneInfo
-import streamlit as st
-import pandas as pd
-import requests
-import base64
 
 if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
