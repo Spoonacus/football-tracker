@@ -8,28 +8,28 @@ from zoneinfo import ZoneInfo
 
 import time # Ensure this is at the top with your other imports
 
+import time
+
 if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
-    # 1. Create a temporary empty container at the very top of the app
     splash_placeholder = st.empty()
     
-    # 2. Put the native Streamlit video inside the container and set it to autoplay
     with splash_placeholder:
         try:
-            # We must set muted=True for browsers to allow autoplay
-            st.video("intro.mp4", format="video/mp4", autoplay=True, muted=True)
+            # Safely open and read the raw video bytes
+            with open("intro.mp4", "rb") as video_file:
+                video_bytes = video_file.read()
             
-            # 3. Force the app to pause loading the rest of the dashboard for exactly 10 seconds
+            # Pass the raw bytes to st.video
+            st.video(video_bytes, format="video/mp4", autoplay=True, muted=True)
+            
             time.sleep(10)
         except FileNotFoundError:
-            pass # Skip if the video hasn't been uploaded yet
+            pass
             
-    # 4. Delete the container entirely so the video disappears
     splash_placeholder.empty()
-    
-    # 5. Lock it so it doesn't play again during this session
     st.session_state.splash_shown = True
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
