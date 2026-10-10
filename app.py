@@ -11,26 +11,8 @@ import time # Ensure this is at the top with your other imports
 import time
 
 if 'splash_shown' not in st.session_state:
-    st.session_state.splash_shown = False
-
-if not st.session_state.splash_shown:
-    splash_placeholder = st.empty()
-    
-    with splash_placeholder:
-        try:
-            # Safely open and read the raw video bytes
-            with open("intro.mp4", "rb") as video_file:
-                video_bytes = video_file.read()
-            
-            # Pass the raw bytes to st.video
-            st.video(video_bytes, format="video/mp4", autoplay=True, muted=True)
-            
-            time.sleep(10)
-        except FileNotFoundError:
-            pass
-            
-    splash_placeholder.empty()
-    st.session_state.splash_shown = True
+                # Pass a known, perfectly encoded test video URL
+            st.video("https://www.w3schools.com/html/mov_bbb.mp4", format="video/mp4", autoplay=True, muted=True)
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
