@@ -10,6 +10,47 @@ if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
+    if not st.session_state.splash_shown:
+    try:
+        with open("intro.mp4", "rb") as video_file:
+            video_bytes = video_file.read()
+        video_b64 = base64.b64encode(video_bytes).decode()
+        
+        # We use a pure CSS animation to fade out and hide the screen after 3.5 seconds
+        splash_html = f"""
+        <style>
+            @keyframes fadeOutAndHide {{
+                0% {{ opacity: 1; visibility: visible; z-index: 999999; }}
+                80% {{ opacity: 1; visibility: visible; z-index: 999999; }}
+                100% {{ opacity: 0; visibility: hidden; z-index: -1; }}
+            }}
+            #video-splash {{
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background-color: #000;
+                z-index: 999999;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                pointer-events: none; /* Allows you to click 'through' it just in case */
+                animation: fadeOutAndHide 3.5s forwards;
+            }}
+        </style>
+        <div id="video-splash">
+            <video autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;">
+                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+            </video>
+        </div>
+        """
+        st.markdown(splash_html, unsafe_allow_html=True)
+        st.session_state.splash_shown = True
+        
+    except FileNotFoundError:
+        pass 
+        
     try:
         with open("intro.mp4", "rb") as video_file:
             video_bytes = video_file.read()
