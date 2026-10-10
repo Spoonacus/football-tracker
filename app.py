@@ -6,16 +6,13 @@ import os
 import base64
 from zoneinfo import ZoneInfo
 
-import time # Ensure this is at the top with your other imports
-
-import time
 import time
 
 if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
-    # 1. CSS to force the native Streamlit video to be fullscreen, hide controls, and auto-delete
+    # 1. CSS to force the Streamlit image to be fullscreen, cover the background, and fade out
     st.markdown("""
     <style>
         @keyframes fadeOutAndHide {
@@ -23,7 +20,7 @@ if not st.session_state.splash_shown:
             95% { opacity: 1; visibility: visible; z-index: 999999; }
             100% { opacity: 0; visibility: hidden; z-index: -1; display: none; }
         }
-        [data-testid="stVideo"] {
+        [data-testid="stImage"] {
             position: fixed;
             top: 0;
             left: 0;
@@ -32,26 +29,19 @@ if not st.session_state.splash_shown:
             z-index: 999999;
             background-color: black;
             animation: fadeOutAndHide 10.5s forwards;
-            pointer-events: none; /* Prevents the video from blocking your taps after fading */
+            pointer-events: none; /* Prevents the invisible overlay from blocking taps later */
         }
-        [data-testid="stVideo"] video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        /* Completely hides the timeline and play buttons */
-        video::-webkit-media-controls {
-            display: none !important;
+        [data-testid="stImage"] img {
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover; /* Forces the GIF to fill the phone screen seamlessly */
         }
     </style>
     """, unsafe_allow_html=True)
     
-    # 2. Start the video, but DO NOT pause the server
+    # 2. Display the GIF using st.image instead of st.video
     try:
-        with open("intro.mp4", "rb") as video_file:
-            video_bytes = video_file.read()
-        
-        st.video(video_bytes, format="video/mp4", autoplay=True, muted=True)
+        st.image("intro.gif")
     except FileNotFoundError:
         pass
         
