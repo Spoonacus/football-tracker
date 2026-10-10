@@ -9,57 +9,56 @@ from zoneinfo import ZoneInfo
 import time # Ensure this is at the top with your other imports
 
 import time
+import time
 
 if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
 if not st.session_state.splash_shown:
-    try:
-        # Load the newly converted H.264 video
-        with open("intro.mp4", "rb") as video_file:
-            video_bytes = video_file.read()
-        video_b64 = base64.b64encode(video_bytes).decode()
+    splash_placeholder = st.empty()
+    
+    # Use a container so we can hold both the CSS and the Video
+    with splash_placeholder.container():
         
-        # Pure CSS overlay: No controls, full screen, auto-hides
-        splash_html = f"""
+        # 1. CSS to force the native Streamlit video to be fullscreen with no controls
+        st.markdown("""
         <style>
-            @keyframes fadeOutAndHide {{
-                0% {{ opacity: 1; visibility: visible; z-index: 999999; }}
-                95% {{ opacity: 1; visibility: visible; z-index: 999999; }}
-                100% {{ opacity: 0; visibility: hidden; z-index: -1; display: none; }}
-            }}
-            #video-splash-container {{
+            [data-testid="stVideo"] {
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100vw;
                 height: 100vh;
-                background-color: #000000;
                 z-index: 999999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                animation: fadeOutAndHide 10.5s forwards;
-                pointer-events: none; /* Prevents the overlay from blocking interactions after fading */
-            }}
-            #video-splash-container video {{
+                background-color: black;
+            }
+            [data-testid="stVideo"] video {
                 width: 100%;
                 height: 100%;
-                object-fit: cover; /* Forces the video to fill the screen on mobile */
-                pointer-events: none; /* Strips away any hidden tap-to-pause controls */
-            }}
+                object-fit: cover; /* Forces video to stretch to the edges */
+            }
+            /* Hides the playback timeline and buttons */
+            video::-webkit-media-controls {
+                display: none !important;
+            }
         </style>
-        <div id="video-splash-container">
-            <video autoplay muted playsinline>
-                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
-            </video>
-        </div>
-        """
-        st.markdown(splash_html, unsafe_allow_html=True)
-        st.session_state.splash_shown = True
+        """, unsafe_allow_html=True)
         
-    except FileNotFoundError:
-        pass
+        # 2. Use the native Streamlit video player that we know works
+        try:
+            with open("intro.mp4", "rb") as video_file:
+                video_bytes = video_file.read()
+            
+            st.video(video_bytes, format="video/mp4", autoplay=True, muted=True)
+            
+            # Pause the dashboard from loading beneath it for 10 seconds
+            time.sleep(10)
+        except FileNotFoundError:
+            pass
+            
+    # 3. Delete the container, which instantly removes the video AND the fullscreen CSS
+    splash_placeholder.empty()
+    st.session_state.splash_shown = True
 
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
