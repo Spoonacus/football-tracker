@@ -10,9 +10,6 @@ import time # Ensure this is at the top with your other imports
 
 import time
 
-import base64
-import streamlit as st
-
 if 'splash_shown' not in st.session_state:
     st.session_state.splash_shown = False
 
