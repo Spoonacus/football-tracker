@@ -78,20 +78,22 @@ st.markdown("""
 
 
 def parse_spread(odds_str, team_abbr):
-    if not odds_str or odds_str.upper() in ["EVEN", "PK"]:
-        return 0.0
-    parts = odds_str.split(" ")
-    if len(parts) >= 2:
-        favored_team = parts[0]
-        try:
-            spread_val = float(parts[1])
-        except ValueError:
-            return 0.0
-        if favored_team == team_abbr:
-            return spread_val
-        else:
-            return abs(spread_val) 
-    return 0.0
+def get_accurate_spread(competition):
+    # 1. Check if the API provided an odds list for this game
+    if 'odds' in competition and len(competition['odds']) > 0:
+        odds_list = competition['odds']
+        
+        # 2. Search the list specifically for the pre-game consensus line
+        for odds in odds_list:
+            provider_name = odds.get('provider', {}).get('name', '').lower()
+            if 'consensus' in provider_name or 'espn bet' in provider_name:
+                return odds.get('details', 'PK')
+        
+        # 3. If the pre-game line is missing, fallback to the first available line
+        return odds_list[0].get('details', 'PK')
+    
+    return "PK" # Default to Pick 'em if no odds exist
+
 
 @st.dialog("🏆 Weekly Winner Finalized!")
 def flash_celebration(winner, week_num):
