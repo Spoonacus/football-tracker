@@ -5,57 +5,9 @@ import datetime
 import os
 import base64
 from zoneinfo import ZoneInfo
-
 import time
 
-if 'splash_shown' not in st.session_state:
-    st.session_state.splash_shown = False
-
-if not st.session_state.splash_shown:
-    try:
-        # Load the GIF as text data so it doesn't hijack native Streamlit images
-        with open("intro.gif", "rb") as f:
-            gif_bytes = f.read()
-        gif_b64 = base64.b64encode(gif_bytes).decode()
-        
-        splash_html = f"""
-        <style>
-            @keyframes fadeOutAndHide {{
-                0% {{ opacity: 1; visibility: visible; z-index: 999999; }}
-                95% {{ opacity: 1; visibility: visible; z-index: 999999; }}
-                100% {{ opacity: 0; visibility: hidden; z-index: -1; display: none; }}
-            }}
-            #custom-splash-screen {{
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100vw;
-                height: 100vh;
-                background-color: black;
-                z-index: 999999;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                animation: fadeOutAndHide 10.5s forwards;
-                pointer-events: none;
-            }}
-            #custom-splash-screen img {{
-                width: 100vw;
-                height: 100vh;
-                object-fit: cover;
-            }}
-        </style>
-        <div id="custom-splash-screen">
-            <img src="data:image/gif;base64,{gif_b64}">
-        </div>
-        """
-        st.markdown(splash_html, unsafe_allow_html=True)
-        
-    except FileNotFoundError:
-        pass
-        
-    st.session_state.splash_shown = True
-
+# 1. PAGE CONFIG MUST BE THE VERY FIRST STREAMLIT COMMAND
 st.set_page_config(page_title="Ghost Bowl ATS", page_icon="👻", layout="centered", initial_sidebar_state="collapsed")
 
 # --- CUSTOM UI CSS ---
@@ -64,36 +16,43 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
-    /* Hides the Streamlit Community Cloud floating viewer badges and developer buttons */
     .stAppDeployButton {display: none !important;}
     [data-testid="viewerBadge"] {display: none !important;}
     [data-testid="stStatusWidget"] {display: none !important;}
     [data-testid="manage-app-button"] {display: none !important;}
     div[class^="viewerBadge"] {display: none !important;}
-    
     .block-container {padding-top: 0.5rem !important; padding-bottom: 1rem !important; padding-left: 0.5rem !important; padding-right: 0.5rem !important;}
     </style>
 """, unsafe_allow_html=True)
 
-
-def parse_spread(odds_str, team_abbr):
+# --- HELPER FUNCTIONS ---
 def get_accurate_spread(competition):
-    # 1. Check if the API provided an odds list for this game
+    # Search specifically for the pre-game consensus line
     if 'odds' in competition and len(competition['odds']) > 0:
         odds_list = competition['odds']
-        
-        # 2. Search the list specifically for the pre-game consensus line
         for odds in odds_list:
             provider_name = odds.get('provider', {}).get('name', '').lower()
             if 'consensus' in provider_name or 'espn bet' in provider_name:
                 return odds.get('details', 'PK')
-        
-        # 3. If the pre-game line is missing, fallback to the first available line
         return odds_list[0].get('details', 'PK')
-    
-    return "PK" # Default to Pick 'em if no odds exist
+    return "PK"
 
+def parse_spread(odds_str, team_abbr):
+    # Converts a string like "SF -3.5" into a numeric -3.5 or 3.5
+    if not odds_str or odds_str.upper() in ['PK', 'EVEN']:
+        return 0.0
+    parts = odds_str.split(' ')
+    if len(parts) >= 2:
+        fav_team = parts[0]
+        try:
+            val = float(parts[1])
+        except ValueError:
+            return 0.0
+        if fav_team.upper() == team_abbr.upper():
+            return val
+        else:
+            return -val
+    return 0.0
 
 @st.dialog("🏆 Weekly Winner Finalized!")
 def flash_celebration(winner, week_num):
@@ -113,6 +72,50 @@ def flash_celebration(winner, week_num):
     else:
         st.markdown(f"<h3 style='text-align: center;'>⚖️ Week {week_num} Ended in a Tie!</h3>", unsafe_allow_html=True)
 
+# --- SPLASH SCREEN LOGIC ---
+if 'splash_shown' not in st.session_state:
+    st.session_state.splash_shown = False
+
+if not st.session_state.splash_shown:
+    splash_placeholder = st.empty()
+    with splash_placeholder.container():
+        try:
+            with open("intro.gif", "rb") as f:
+                gif_bytes = f.read()
+            gif_b64 = base64.b64encode(gif_bytes).decode()
+            
+            splash_html = f"""
+            <style>
+                #custom-splash-screen {{
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100vw;
+                    height: 100vh;
+                    background-color: black;
+                    z-index: 999999;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    pointer-events: auto; /* Detects screen taps */
+                    cursor: pointer;
+                }}
+                #custom-splash-screen img {{
+                    width: 100vw;
+                    height: 100vh;
+                    object-fit: cover;
+                }}
+            </style>
+            <!-- Tapping screen hides it immediately -->
+            <div id="custom-splash-screen" onclick="this.style.display='none'">
+                <img src="data:image/gif;base64,{gif_b64}">
+            </div>
+            """
+            st.markdown(splash_html, unsafe_allow_html=True)
+        except FileNotFoundError:
+            pass
+
+# --- API DATA FETCHING ---
 @st.cache_data(ttl=60)
 def fetch_current_week():
     url = "http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
@@ -132,9 +135,11 @@ def fetch_current_week():
         if 'SF' in team_abbrs or 'LV' in team_abbrs:
             state = comp['status']['type']['state']
             status_text = event['status']['type']['shortDetail']
-            odds_str = comp.get('odds', [{}])[0].get('details', '') if comp.get('odds') else ''
             
-            if not odds_str and state == 'post':
+            # Fetch spread securely
+            odds_str = get_accurate_spread(comp)
+            
+            if odds_str == 'PK' and state == 'post':
                 game_id = event['id']
                 summary_url = f"http://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={game_id}"
                 try:
@@ -184,7 +189,7 @@ def fetch_current_week():
                 
     return sf_data, lv_data, current_week_num
 
-@st.cache_data(ttl=300) # REDUCED TO 5 MINUTES SO IT LOGS THE WINNER QUICKLY
+@st.cache_data(ttl=300)
 def fetch_season_data():
     results = []
     now = datetime.datetime.now()
@@ -208,9 +213,9 @@ def fetch_season_data():
             team_abbrs = [t['team']['abbreviation'] for t in teams]
             
             if 'SF' in team_abbrs or 'LV' in team_abbrs:
-                odds_str = comp.get('odds', [{}])[0].get('details', '') if comp.get('odds') else ''
+                odds_str = get_accurate_spread(comp)
                 
-                if not odds_str:
+                if odds_str == 'PK':
                     game_id = event['id']
                     summary_url = f"http://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={game_id}"
                     try:
@@ -254,33 +259,20 @@ def is_celebration_active(latest_completed_week, current_week_num, sf_live, lv_l
         now_pt = datetime.datetime.now(ZoneInfo("America/Los_Angeles"))
     except Exception:
         now_pt = datetime.datetime.utcnow() - datetime.timedelta(hours=7)
-        
     weekday = now_pt.weekday()
-    
-    if weekday in [4, 5]:
-        return False
-        
+    if weekday in [4, 5]: return False
     if weekday == 3:
-        if now_pt.hour > 17 or (now_pt.hour == 17 and now_pt.minute >= 15):
-            return False
-        if latest_completed_week not in [current_week_num, current_week_num - 1]:
-            return False
+        if now_pt.hour > 17 or (now_pt.hour == 17 and now_pt.minute >= 15): return False
+        if latest_completed_week not in [current_week_num, current_week_num - 1]: return False
         return True
-
     if weekday in [1, 2]:
-        if latest_completed_week not in [current_week_num, current_week_num - 1]:
-            return False
+        if latest_completed_week not in [current_week_num, current_week_num - 1]: return False
         return True
-
     if weekday in [0, 6]:
-        if not sf_live or not lv_live:
-            return False
-        if sf_live.get('state') != 'post' or lv_live.get('state') != 'post':
-            return False
-        if latest_completed_week != current_week_num:
-            return False
+        if not sf_live or not lv_live: return False
+        if sf_live.get('state') != 'post' or lv_live.get('state') != 'post': return False
+        if latest_completed_week != current_week_num: return False
         return True
-
     return False
 
 def build_live_card_html(team, bg_color, text_color, data, is_winning=False):
@@ -317,7 +309,18 @@ def build_live_card_html(team, bg_color, text_color, data, is_winning=False):
 {ats_line}
 </div>"""
 
-# --- BANNER IMAGE HEADER ---
+
+# --- EXECUTE APIS & REMOVE SPLASH SCREEN ---
+with st.spinner("Connecting to ESPN Live API..."):
+    sf_live, lv_live, current_week_num = fetch_current_week()
+    df = fetch_season_data()
+
+# Data is fully loaded. Delete the Splash Screen if it's still showing.
+if not st.session_state.splash_shown:
+    splash_placeholder.empty()
+    st.session_state.splash_shown = True
+
+# --- RENDER MAIN UI ---
 if os.path.exists("1791152594772.jpg"):
     st.image("1791152594772.jpg", use_container_width=True)
 elif os.path.exists("banner.jpg"):
@@ -327,30 +330,20 @@ elif os.path.exists("banner.png"):
 else:
     st.markdown("<h2 style='text-align: center;'>👻 Bay Bridge Ghost Bowl</h2>", unsafe_allow_html=True)
 
-with st.spinner("Connecting to ESPN Live API..."):
-    sf_live, lv_live, current_week_num = fetch_current_week()
-    df = fetch_season_data()
-
 sf_winning = False
 lv_winning = False
 
 if sf_live and lv_live:
     sf_ats = sf_live.get('live_ats')
     lv_ats = lv_live.get('live_ats')
-    
     if sf_ats is not None and lv_ats is not None:
-        if sf_ats > lv_ats:
-            sf_winning = True
-        elif lv_ats > sf_ats:
-            lv_winning = True
+        if sf_ats > lv_ats: sf_winning = True
+        elif lv_ats > sf_ats: lv_winning = True
     elif sf_ats is not None and lv_ats is None:
-        if sf_ats > 0:
-            sf_winning = True
+        if sf_ats > 0: sf_winning = True
     elif lv_ats is not None and sf_ats is None:
-        if lv_ats > 0:
-            lv_winning = True
+        if lv_ats > 0: lv_winning = True
 
-# --- LIVE MATCHUP BANNER ---
 live_html = f"""<div style='display: flex; justify-content: space-between; gap: 6px; margin-top: 5px; margin-bottom: 15px;'>
 {build_live_card_html("49ERS", "#AA0000", "#FFFFFF", sf_live, is_winning=sf_winning)}
 {build_live_card_html("RAIDERS", "#000000", "#A5ACAF", lv_live, is_winning=lv_winning)}
@@ -396,7 +389,6 @@ if not df.empty:
     for index, row in df.iterrows():
         sf_class = "win-sf" if row['Winner'] == '49ers' else ""
         lv_class = "win-lv" if row['Winner'] == 'Raiders' else ""
-        
         if row['Winner'] == '49ers': win_badge = "🔴 SF"
         elif row['Winner'] == 'Raiders': win_badge = "⚫ LV"
         else: win_badge = "Tie"
